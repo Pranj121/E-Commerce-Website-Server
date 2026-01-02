@@ -15,6 +15,26 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Request / response logger for debugging
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  // when response finishes, log status and duration
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    const now = new Date().toISOString();
+    const bodyPreview =
+      ["POST", "PUT", "PATCH"].includes(req.method) && req.body
+        ? ` body=${JSON.stringify(req.body)}`
+        : "";
+    console.log(
+      `[${now}] ${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms${bodyPreview}`
+    );
+  });
+
+  next();
+});
+
 /* ================= MONGODB CONNECTION ================= */
 mongoose
   .connect(process.env.MONGO_URI)
@@ -54,6 +74,14 @@ app.use("/api/auth", authRoutes);
 
 /* ================= PAYMENT ROUTES ================= */
 app.use("/api/payment", paymentRoutes); // ✅ ADD THIS
+
+// Centralized error handler to ensure valid JSON responses
+app.use((err, req, res, next) => {
+  console.error("[express error]", err);
+  const status = err.status || 500;
+  const message = err.message || "Internal Server Error";
+  res.status(status).json({ error: message });
+});
 
 export default app;
 
